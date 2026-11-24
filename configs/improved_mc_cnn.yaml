@@ -24,7 +24,7 @@ training:
   loss: "weighted_ce" # Handles dermatoscopy class imbalance using train-split class weights
   scheduler: "cosine"
   early_stopping_patience: 7
-  selection_metric: "macro_f1"
+  selection_metric: "val_loss"
 
 uncertainty:
   mc_samples: 25

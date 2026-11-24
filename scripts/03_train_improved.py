@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from trustskin.data import compute_class_weights, create_dataloaders
+from trustskin.data import compute_class_weights, create_dataloaders, get_split_labels
 from trustskin.models import build_model
 from trustskin.training import Trainer, build_criterion
 from trustskin.utils import get_device, load_config, set_seed
@@ -30,8 +30,12 @@ def main() -> None:
     train_cfg = cfg["training"]
     class_weights = None
     if train_cfg["loss"].lower() in {"weighted_ce", "focal"}:
-        train_ds = loaders["train"].dataset
-        train_labels = np.array([int(train_ds[i][1]) for i in range(len(train_ds))])
+        train_labels = get_split_labels(
+            data_root=cfg["paths"]["data_root"],
+            dataset_id=cfg["dataset"]["dataset_id"],
+            task_name=cfg["dataset"]["task_name"],
+            split="train",
+        )
         class_weights = compute_class_weights(train_labels, cfg["dataset"]["num_classes"])
 
     criterion = build_criterion(train_cfg["loss"], class_weights=class_weights)

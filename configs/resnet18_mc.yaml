@@ -1,0 +1,31 @@
+# Comparative Reference: Pretrained ResNet-18 with Dropout Head (MC Dropout + Temp Scaling)
+# Note: Comparative reference only — does NOT replace the required CS320 scratch BaselineCNN.
+
+_base_: "base.yaml"
+
+experiment:
+  name: "resnet18_mc"
+
+dataset:
+  augment: true
+  batch_size: 64
+
+model:
+  type: "resnet18_mc"
+  in_channels: 3
+  num_classes: 7
+  dropout_p: 0.3
+  pretrained: true
+
+training:
+  epochs: 20
+  optimizer: "adamw"
+  lr: 0.0003
+  weight_decay: 0.0001
+  loss: "weighted_ce"
+  scheduler: "cosine"
+  early_stopping_patience: 6
+  selection_metric: "val_loss"
+
+uncertainty:
+  mc_samples: 25

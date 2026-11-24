@@ -6,13 +6,13 @@ experiment:
   device: "auto" # "auto", "cuda", "mps", or "cpu"
 
 paths:
-  data_root: "data/raw"
+  data_root: "data"
   checkpoints_dir: "checkpoints"
   outputs_dir: "outputs"
 
 dataset:
   dataset_id: "derm"
-  task_name: "Disease" # MedIMeta Dermatoscopy 7-class primary task
+  task_name: "disease category" # Exact MedIMeta Dermatoscopy 7-class task name from info.yaml
   image_size: 224
   in_channels: 3
   num_classes: 7
@@ -30,7 +30,7 @@ training:
   weight_decay: 0.0
   loss: "cross_entropy" # "cross_entropy", "weighted_ce", or "focal"
   early_stopping_patience: 0 # 0 disables early stopping
-  selection_metric: "macro_f1" # "macro_f1" or "val_loss"
+  selection_metric: "val_loss" # Smooth on 193-sample val split (val has only 1 DF sample)
 
 uncertainty:
   mc_samples: 20

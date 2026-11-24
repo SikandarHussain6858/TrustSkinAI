@@ -28,6 +28,9 @@ htmlcov/
 .ruff_cache/
 
 # Datasets (MedIMeta downloads — never commit raw data)
+data/*
+!data/.gitkeep
+!data/raw/
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
