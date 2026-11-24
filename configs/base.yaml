@@ -1,0 +1,45 @@
+# Shared base configuration for TrustSkin AI (CS320 P08 — MedIMeta Dermatoscopy)
+
+experiment:
+  name: "trustskin_base"
+  seed: 42
+  device: "auto" # "auto", "cuda", "mps", or "cpu"
+
+paths:
+  data_root: "data/raw"
+  checkpoints_dir: "checkpoints"
+  outputs_dir: "outputs"
+
+dataset:
+  dataset_id: "derm"
+  task_name: "Disease" # MedIMeta Dermatoscopy 7-class primary task
+  image_size: 224
+  in_channels: 3
+  num_classes: 7
+  batch_size: 64
+  num_workers: 2
+  pin_memory: true
+  normalize_mean: [0.485, 0.456, 0.406]
+  normalize_std: [0.229, 0.224, 0.225]
+  augment: false
+
+training:
+  epochs: 20
+  optimizer: "adam"
+  lr: 0.001
+  weight_decay: 0.0
+  loss: "cross_entropy" # "cross_entropy", "weighted_ce", or "focal"
+  early_stopping_patience: 0 # 0 disables early stopping
+  selection_metric: "macro_f1" # "macro_f1" or "val_loss"
+
+uncertainty:
+  mc_samples: 20
+
+calibration:
+  n_bins: 15
+  max_iter: 50
+  lr: 0.01
+
+selective:
+  num_thresholds: 101
+  target_coverages: [1.0, 0.9, 0.8, 0.7, 0.6, 0.5]

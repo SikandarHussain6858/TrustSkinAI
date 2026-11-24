@@ -1,0 +1,30 @@
+# Improved Regularized CNN with Monte Carlo Dropout & Imbalance Handling
+# Controlled improvement over baseline_cnn.yaml for uncertainty estimation & reliability.
+
+_base_: "base.yaml"
+
+experiment:
+  name: "improved_mc_cnn"
+
+dataset:
+  augment: true
+
+model:
+  type: "uncertainty_cnn" # "uncertainty_cnn" or "resnet18_mc"
+  in_channels: 3
+  num_classes: 7
+  dropout_p: 0.25
+  pretrained: false # Set true only when running transfer-learning comparative experiment
+
+training:
+  epochs: 30
+  optimizer: "adamw"
+  lr: 0.001
+  weight_decay: 0.0001
+  loss: "weighted_ce" # Handles dermatoscopy class imbalance using train-split class weights
+  scheduler: "cosine"
+  early_stopping_patience: 7
+  selection_metric: "macro_f1"
+
+uncertainty:
+  mc_samples: 25

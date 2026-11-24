@@ -1,0 +1,25 @@
+# CS320 Common Suggested Reference Baseline CNN
+# Strictly follows the course specification:
+# 3 conv blocks (32 -> 64 -> 128) + GAP + Linear(128, 7), random init, Adam 1e-3, 20 epochs, no augmentation.
+
+_base_: "base.yaml"
+
+experiment:
+  name: "baseline_cnn"
+
+dataset:
+  augment: false
+
+model:
+  type: "baseline_cnn"
+  in_channels: 3
+  num_classes: 7
+
+training:
+  epochs: 20
+  optimizer: "adam"
+  lr: 0.001
+  weight_decay: 0.0
+  loss: "cross_entropy"
+  early_stopping_patience: 0
+  selection_metric: "macro_f1"
