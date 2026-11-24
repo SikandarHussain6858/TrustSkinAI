@@ -1,4 +1,4 @@
-"""Step 4: Fit Temperature Scaling on Val, run MC Dropout uncertainty & Selective Classification on Test."""
+"""Step 4: Fit Temperature Scaling on Val, run MC Dropout (or deterministic) uncertainty & Selective Classification on Test."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn.functional as F
 
@@ -26,7 +27,12 @@ from trustskin.selective import (
     evaluate_at_threshold,
     select_threshold_for_coverage,
 )
-from trustskin.uncertainty import collect_logits_and_targets, mc_dropout_predict
+from trustskin.uncertainty import (
+    collect_logits_and_targets,
+    compute_error_detection_auroc,
+    mc_dropout_predict,
+    predictive_entropy,
+)
 from trustskin.utils import get_device, load_config, set_seed
 
 
@@ -36,12 +42,14 @@ def main() -> None:
     )
     parser.add_argument("--config", type=str, default="configs/improved_mc_cnn.yaml")
     parser.add_argument("--checkpoint", type=str, required=True)
+    parser.add_argument("--mc-samples", type=int, default=None, help="Override MC passes (use 1 for deterministic).")
+    parser.add_argument("--exp-name", type=str, default=None, help="Optional override for output experiment name.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     set_seed(cfg["experiment"]["seed"])
     device = get_device(cfg["experiment"]["device"])
-    exp_name = cfg["experiment"]["name"]
+    exp_name = args.exp_name or cfg["experiment"]["name"]
     outputs_dir = Path(cfg["paths"]["outputs_dir"])
 
     loaders, class_names = create_dataloaders(cfg)
@@ -58,7 +66,7 @@ def main() -> None:
         lr=float(cfg["calibration"]["lr"]),
         max_iter=int(cfg["calibration"]["max_iter"]),
     )
-    print(f"Learned Temperature on Val split: T = {learned_t:.4f}")
+    print(f"[{exp_name}] Learned Temperature on Val split: T = {learned_t:.4f}")
 
     # 2. Deterministic Test evaluation (before & after Temperature Scaling)
     test_logits, test_targets = collect_logits_and_targets(model, loaders["test"], device)
@@ -66,15 +74,26 @@ def main() -> None:
     probs_uncal = F.softmax(test_logits, dim=-1).numpy()
     probs_cal = scaler.predict_probs(test_logits)
 
-    # 3. MC Dropout Test evaluation (with learned temperature)
-    mc_samples = int(cfg["uncertainty"]["mc_samples"])
-    mc_out = mc_dropout_predict(
-        model,
-        loaders["test"],
-        device=device,
-        mc_samples=mc_samples,
-        temperature=learned_t,
-    )
+    # 3. MC Dropout (if mc_samples > 1) or Deterministic Calibrated evaluation
+    mc_samples = args.mc_samples if args.mc_samples is not None else int(cfg["uncertainty"]["mc_samples"])
+    if mc_samples > 1:
+        mc_out = mc_dropout_predict(
+            model,
+            loaders["test"],
+            device=device,
+            mc_samples=mc_samples,
+            temperature=learned_t,
+        )
+    else:
+        mc_out = {
+            "mean_probs": probs_cal,
+            "preds": np.argmax(probs_cal, axis=-1),
+            "confidence": np.max(probs_cal, axis=-1),
+            "entropy": predictive_entropy(probs_cal),
+            "mutual_information": np.zeros(len(y_true), dtype=np.float64),
+            "variance": np.zeros(len(y_true), dtype=np.float64),
+            "targets": y_true,
+        }
 
     n_bins = int(cfg["calibration"]["n_bins"])
     cls_metrics = compute_classification_metrics(y_true, mc_out["preds"], class_names=class_names)
@@ -108,6 +127,20 @@ def main() -> None:
             "brier_calibrated": compute_brier_score(probs_cal, y_true),
             "brier_mc_calibrated": compute_brier_score(mc_out["mean_probs"], y_true),
         },
+        "uncertainty": {
+            "error_auroc_uncal_conf": compute_error_detection_auroc(
+                np.argmax(probs_uncal, axis=-1), y_true, 1.0 - np.max(probs_uncal, axis=-1)
+            ),
+            "error_auroc_mc_conf": compute_error_detection_auroc(
+                mc_out["preds"], y_true, 1.0 - mc_out["confidence"]
+            ),
+            "error_auroc_mc_entropy": compute_error_detection_auroc(
+                mc_out["preds"], y_true, mc_out["entropy"]
+            ),
+            "error_auroc_mc_mi": compute_error_detection_auroc(
+                mc_out["preds"], y_true, mc_out["mutual_information"]
+            ),
+        },
         "selective": {
             "aurc_uncal_conf": compute_aurc(
                 np.argmax(probs_uncal, axis=-1), y_true, np.max(probs_uncal, axis=-1), True
@@ -118,10 +151,25 @@ def main() -> None:
         },
     }
 
-    out_json = outputs_dir / "tables" / f"{exp_name}_reliability_results.json"
-    out_json.parent.mkdir(parents=True, exist_ok=True)
-    with out_json.open("w", encoding="utf-8") as f:
+    tables_dir = outputs_dir / "tables"
+    tables_dir.mkdir(parents=True, exist_ok=True)
+    with (tables_dir / f"{exp_name}_reliability_results.json").open("w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
+
+    # Export per-sample test predictions for cross-model plots & difficult-case error analysis
+    pred_df = pd.DataFrame(
+        {
+            "sample_idx": np.arange(len(y_true)),
+            "true_label": y_true,
+            "pred_label": mc_out["preds"],
+            "correct": (mc_out["preds"] == y_true).astype(int),
+            "conf_uncal": np.max(probs_uncal, axis=-1),
+            "conf_cal": mc_out["confidence"],
+            "entropy": mc_out["entropy"],
+            "mutual_information": mc_out["mutual_information"],
+        }
+    )
+    pred_df.to_csv(tables_dir / f"{exp_name}_test_predictions.csv", index=False)
 
     # Save diagnostic plots
     fig_dir = outputs_dir / "figures"
@@ -141,8 +189,8 @@ def main() -> None:
     plot_reliability_diagram(
         mc_out["mean_probs"],
         y_true,
-        fig_dir / f"{exp_name}_reliability_after_mc.png",
-        title=f"{exp_name} — After Temperature Scaling + MC Dropout",
+        fig_dir / f"{exp_name}_reliability_after.png",
+        title=f"{exp_name} — After Temperature Scaling (T={learned_t:.2f}, MC={mc_samples})",
         n_bins=n_bins,
     )
     plot_uncertainty_histograms(
@@ -155,18 +203,18 @@ def main() -> None:
             "Deterministic (Uncalibrated)": compute_risk_coverage_curve(
                 np.argmax(probs_uncal, axis=-1), y_true, np.max(probs_uncal, axis=-1), True
             ),
-            "MC Dropout + Temp Scaling (Conf)": compute_risk_coverage_curve(
+            f"Calibrated (MC={mc_samples}, Conf)": compute_risk_coverage_curve(
                 mc_out["preds"], y_true, mc_out["confidence"], True
             ),
-            "MC Dropout + Temp Scaling (Entropy)": compute_risk_coverage_curve(
+            f"Calibrated (MC={mc_samples}, Entropy)": compute_risk_coverage_curve(
                 mc_out["preds"], y_true, mc_out["entropy"], False
             ),
         },
         fig_dir / f"{exp_name}_risk_coverage.png",
     )
 
-    print(json.dumps(results["calibration"], indent=2))
-    print(json.dumps({k: v for k, v in results["selective"].items() if k != "coverage_operating_points"}, indent=2))
+    print(f"[{exp_name}] Calibration:", json.dumps(results["calibration"], indent=2))
+    print(f"[{exp_name}] Error Detection AUROC:", json.dumps(results["uncertainty"], indent=2))
 
 
 if __name__ == "__main__":

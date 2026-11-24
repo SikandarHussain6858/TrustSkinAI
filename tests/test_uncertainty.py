@@ -7,7 +7,12 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from trustskin.models import UncertaintyCNN
-from trustskin.uncertainty import mc_dropout_predict, mutual_information, predictive_entropy
+from trustskin.uncertainty import (
+    compute_error_detection_auroc,
+    mc_dropout_predict,
+    mutual_information,
+    predictive_entropy,
+)
 
 
 def test_predictive_entropy_bounds() -> None:
@@ -42,3 +47,13 @@ def test_mc_dropout_predict_shapes() -> None:
     assert out["entropy"].shape == (6,)
     assert out["mutual_information"].shape == (6,)
     assert np.allclose(out["mean_probs"].sum(axis=1), 1.0, atol=1e-5)
+
+
+def test_error_detection_auroc() -> None:
+    preds = np.array([0, 1, 2, 0])
+    targets = np.array([0, 1, 0, 1])  # last two are errors
+    good_unc = np.array([0.1, 0.2, 0.8, 0.9])
+    bad_unc = np.array([0.9, 0.8, 0.2, 0.1])
+
+    assert np.isclose(compute_error_detection_auroc(preds, targets, good_unc), 1.0)
+    assert np.isclose(compute_error_detection_auroc(preds, targets, bad_unc), 0.0)

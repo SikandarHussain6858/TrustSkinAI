@@ -6,9 +6,22 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 
 from trustskin.models.uncertainty_cnn import enable_mc_dropout
+
+
+def compute_error_detection_auroc(
+    preds: np.ndarray,
+    targets: np.ndarray,
+    uncertainty_scores: np.ndarray,
+) -> float:
+    """Measure how well an uncertainty score separates misclassifications (1) from correct predictions (0)."""
+    errors = (np.asarray(preds) != np.asarray(targets)).astype(np.int64)
+    if len(np.unique(errors)) < 2:
+        return float("nan")
+    return float(roc_auc_score(errors, np.asarray(uncertainty_scores, dtype=np.float64)))
 
 
 def predictive_entropy(probs: np.ndarray, eps: float = 1e-12) -> np.ndarray:

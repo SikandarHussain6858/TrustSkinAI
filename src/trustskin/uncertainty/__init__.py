@@ -2,6 +2,7 @@
 
 from .estimator import (
     collect_logits_and_targets,
+    compute_error_detection_auroc,
     mc_dropout_predict,
     mutual_information,
     predictive_entropy,
@@ -9,6 +10,7 @@ from .estimator import (
 
 __all__ = [
     "collect_logits_and_targets",
+    "compute_error_detection_auroc",
     "mc_dropout_predict",
     "mutual_information",
     "predictive_entropy",

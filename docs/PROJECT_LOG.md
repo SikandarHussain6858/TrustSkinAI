@@ -53,14 +53,25 @@
 
 ---
 
-## Experiment Registry (To Be Populated During Phase 3 — Google Colab GPU Runs)
+## Phase 3A — Pre-Colab Instrumentation, Error Analysis & Turnkey Colab Notebook (Completed: 2026-11-24)
 
-| Exp ID | Config | Description | Test Acc | Bal Acc | Macro F1 | ECE (Before → After) | Brier (After) | AURC | Temp ($T$) | Status |
-| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Exp 0** | `baseline_cnn.yaml` | CS320 3-block CNN (scratch, CE, no aug) | — | — | — | — | — | — | 1.0 | Pending Colab |
-| **Exp 1** | `ablation_weighted_aug.yaml` | `UncertaintyCNN` + Aug + Weighted CE (deterministic) | — | — | — | — | — | — | 1.0 | Pending Colab |
-| **Exp 2/3** | `improved_mc_cnn.yaml` | `UncertaintyCNN` + MC Dropout ($T=25$) + Temp Scaling | — | — | — | — | — | — | — | Pending Colab |
-| **Exp 4** | `resnet18_mc.yaml` | Comparative Pretrained `ResNet18MC` + MC + Temp Scaling | — | — | — | — | — | — | — | Pending Colab |
+### Upgrades Implemented
+- **Error Detection AUROC (`src/trustskin/uncertainty/estimator.py`):** Added `compute_error_detection_auroc()` to quantify how well `1 - confidence`, `predictive_entropy`, and `mutual_information` separate misclassified lesions from correct predictions.
+- **Per-Sample Test Prediction Exports (`scripts/02_train_baseline.py`, `scripts/04_calibrate_and_select.py`):** Every evaluated model now saves `outputs/tables/<exp>_test_predictions.csv` and supports `--mc-samples 1` so `BaselineCNN + Temperature Scaling` (`Exp 0-Cal`) can be evaluated as a controlled ablation.
+- **Combined Comparison & Convergence Plots (`scripts/05_compare_experiments.py`):** Added multi-model Risk–Coverage overlay (`all_models_risk_coverage.png`) and train/val loss & Macro-F1 curves (`training_curves.png`).
+- **Difficult-Case & Malignant-Safety Analysis (`scripts/06_error_analysis.py`):** Computes top confused class pairs, per-class error/entropy summaries, malignant (`MEL`, `BCC`) error capture rate under selective referral (90%/80%/70% coverage), and visual grids of the 12 highest-uncertainty test lesions and 12 most confident misclassifications.
+- **Turnkey Google Colab Notebook (`notebooks/00_colab_setup_and_train.ipynb`):** Pre-filled with GitHub URL, automatic direct Zenodo download of MedIMeta `derm` onto Colab SSD (record `7884735`), all 4 controlled experiments (`Exp 0`, `Exp 0-Cal`, `Exp 1/2/3`, `Exp 4`), and automatic Drive backup + zip packaging of `checkpoints/` and `outputs/`.
+
+---
+
+## Experiment Registry (To Be Populated During Phase 3B — Google Colab GPU Runs)
+
+| Exp ID | Config | Description | Test Acc | Bal Acc | Macro F1 | ECE (Before → After) | Brier (After) | AURC | Err-AUROC (Ent) | Temp ($T$) | Status |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Exp 0** | `baseline_cnn.yaml` | CS320 3-block CNN (scratch, CE, no aug) | — | — | — | — | — | — | — | 1.0 | Ready for Colab |
+| **Exp 0-Cal** | `baseline_cnn.yaml` (`--mc-samples 1`) | Baseline CNN + Post-hoc Temp Scaling on Val | — | — | — | — | — | — | — | — | Ready for Colab |
+| **Exp 1/2/3** | `improved_mc_cnn.yaml` | `UncertaintyCNN` + Aug + Weighted CE + MC ($T=25$) + Temp Scaling | — | — | — | — | — | — | — | — | Ready for Colab |
+| **Exp 4** | `resnet18_mc.yaml` | Comparative Pretrained `ResNet18MC` + MC ($T=25$) + Temp Scaling | — | — | — | — | — | — | — | — | Ready for Colab |
 
 ---
 
