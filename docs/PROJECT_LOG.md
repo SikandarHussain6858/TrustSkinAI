@@ -64,19 +64,28 @@
 
 ---
 
-## Experiment Registry (To Be Populated During Phase 3B — Google Colab GPU Runs)
+## Phase 3B — Google Colab T4 GPU Controlled Experiments & Local Sync (Completed: 2026-11-25)
 
-| Exp ID | Config | Description | Test Acc | Bal Acc | Macro F1 | ECE (Before → After) | Brier (After) | AURC | Err-AUROC (Ent) | Temp ($T$) | Status |
+### Execution Summary
+- Executed `notebooks/00_colab_setup_and_train.ipynb` end-to-end on a **Google Colab Tesla T4 GPU** (`PyTorch 2.14.1+cu130`, CUDA 13.0) using direct 16-stream `aria2c` download of MedIMeta `derm.zip` (Zenodo `7884735`).
+- Verified all **12/12** unit + real-dataset tests passed on Colab prior to training.
+- Trained and evaluated all 4 controlled experiments on identical MedIMeta splits (`train: 10,015`, `val: 193`, `test: 1,512`), then synced `checkpoints/` (3 verified `.pt` models) and `outputs/` (27 figures, 14 tables/JSONs, 3 logs) back locally.
+- Detailed analysis and report-ready tables recorded in [docs/EXPERIMENT_RESULTS.md](EXPERIMENT_RESULTS.md).
+
+---
+
+## Experiment Registry (Verified Test Set Results, $n = 1{,}512$)
+
+| Exp ID | Config | Description | Test Acc | Bal Acc | Macro F1 | ECE (Before → After) | Brier (After) | AURC ↓ | Err-AUROC (Ent) ↑ | Temp ($T$) | Status |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Exp 0** | `baseline_cnn.yaml` | CS320 3-block CNN (scratch, CE, no aug) | — | — | — | — | — | — | — | 1.0 | Ready for Colab |
-| **Exp 0-Cal** | `baseline_cnn.yaml` (`--mc-samples 1`) | Baseline CNN + Post-hoc Temp Scaling on Val | — | — | — | — | — | — | — | — | Ready for Colab |
-| **Exp 1/2/3** | `improved_mc_cnn.yaml` | `UncertaintyCNN` + Aug + Weighted CE + MC ($T=25$) + Temp Scaling | — | — | — | — | — | — | — | — | Ready for Colab |
-| **Exp 4** | `resnet18_mc.yaml` | Comparative Pretrained `ResNet18MC` + MC ($T=25$) + Temp Scaling | — | — | — | — | — | — | — | — | Ready for Colab |
+| **Exp 0** | `baseline_cnn.yaml` | CS320 3-block CNN (scratch, CE, no aug, best ep 18) | 66.07% | 30.85% | 34.61% | 0.0546 → 0.0546 | 0.4462 | 0.1334 | 0.8110 | 1.0000 | Verified |
+| **Exp 0-Cal** | `baseline_cnn.yaml` (`--mc-samples 1`) | Baseline CNN + Post-hoc Temp Scaling on Val | 66.07% | 30.85% | 34.61% | 0.0546 → 0.0666 | 0.4485 | 0.1335 | 0.8123 | 0.9503 | Verified |
+| **Exp 1/2/3** | `improved_mc_cnn.yaml` | `UncertaintyCNN` + Aug + Weighted CE + MC ($T=25$) + TS (best ep 19) | 49.93% | 44.23% | 34.28% | 0.0870 → 0.0770 | 0.5724 | 0.2511 | 0.7875 | 0.9646 | Verified |
+| **Exp 4** | `resnet18_mc.yaml` | Comparative Pretrained `ResNet18MC` + Weighted CE + MC ($T=25$) + TS (best ep 12) | **77.25%** | **73.98%** | **70.08%** | **0.0862 → 0.0587** | **0.3218** | **0.0754** *(Ent: 0.0737)* | **0.8275** *(MI: 0.8019)* | 1.2060 | Verified (Best) |
 
 ---
 
 ## Upcoming Phases Checklist
-- [ ] **Phase 3 (Google Colab GPU):** Push repo to GitHub, stage `data/derm` on Colab, run Exp 0 (`baseline_cnn`) and record difficult/confused classes.
-- [ ] **Phase 4 (Google Colab GPU):** Run Exp 1–4 controlled ablations, MC Dropout uncertainty evaluation, Temperature Scaling calibration, and Selective Classification Risk–Coverage analysis.
-- [ ] **Phase 5 (Local Analysis & UI):** Sync checkpoints & outputs back locally, run difficult-case visual error analysis, verify Streamlit UI (`app/demo_app.py`) with trained weights.
-- [ ] **Phase 6 (Week 15 Submission):** Finalize Technical Report (10 sections + Contribution Statement + AI Tool Disclosure) and Week 17 Viva slides.
+- [x] **Phase 3 (Google Colab GPU):** Run Exp 0–4 controlled experiments, calibration, selective classification, and difficult-case error analysis; sync `checkpoints/` and `outputs/` locally.
+- [ ] **Phase 4 (Demo UI & Optional Ablation):** Wire `resnet18_mc_best.pt` ($T = 1.2060$) into the Streamlit demo (`app/demo_app.py`), and optionally test square-root dampened class weights ($1/\sqrt{n_c}$) to reduce `NV → MEL` false positives.
+- [ ] **Phase 5 (Week 15 Submission):** Finalize Technical Report (10 sections + Contribution Statement + AI Tool Disclosure) and Week 17 Viva slides.
