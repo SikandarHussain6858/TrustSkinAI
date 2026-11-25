@@ -1,4 +1,9 @@
-"""Step 4: Fit Temperature Scaling on Val, run MC Dropout (or deterministic) uncertainty & Selective Classification on Test."""
+"""Step 4: Fit Temperature Scaling on Val, run MC Dropout (or deterministic) uncertainty & Selective Classification on Test.
+
+Fixes the validation/test score-matching bug: when MC Dropout is enabled (`mc_samples > 1`),
+selective confidence thresholds are selected on MC-averaged calibrated validation confidences
+so validation and test confidence distributions match.
+"""
 
 from __future__ import annotations
 
@@ -53,7 +58,10 @@ def main() -> None:
     outputs_dir = Path(cfg["paths"]["outputs_dir"])
 
     loaders, class_names = create_dataloaders(cfg)
-    model = build_model(cfg["model"]).to(device)
+    model_cfg = dict(cfg["model"])
+    if model_cfg.get("type") == "resnet18_mc":
+        model_cfg["pretrained"] = False
+    model = build_model(model_cfg).to(device)
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
 
@@ -68,23 +76,28 @@ def main() -> None:
     )
     print(f"[{exp_name}] Learned Temperature on Val split: T = {learned_t:.4f}")
 
-    # 2. Deterministic Test evaluation (before & after Temperature Scaling)
+    # 2. Deterministic Test evaluation (I1: uncalibrated, I2: + Temperature Scaling)
     test_logits, test_targets = collect_logits_and_targets(model, loaders["test"], device)
     y_true = test_targets.numpy()
     probs_uncal = F.softmax(test_logits, dim=-1).numpy()
     probs_cal = scaler.predict_probs(test_logits)
 
-    # 3. MC Dropout (if mc_samples > 1) or Deterministic Calibrated evaluation
+    # 3. MC Dropout Test evaluation (I3: MC uncalibrated, I4: MC + Temperature Scaling)
     mc_samples = args.mc_samples if args.mc_samples is not None else int(cfg["uncertainty"]["mc_samples"])
     if mc_samples > 1:
-        mc_out = mc_dropout_predict(
-            model,
-            loaders["test"],
-            device=device,
-            mc_samples=mc_samples,
-            temperature=learned_t,
+        mc_uncal = mc_dropout_predict(
+            model, loaders["test"], device=device, mc_samples=mc_samples, temperature=1.0
         )
+        mc_out = mc_dropout_predict(
+            model, loaders["test"], device=device, mc_samples=mc_samples, temperature=learned_t
+        )
+        # Match validation score type to test score type (MC-averaged calibrated confidence)
+        val_mc = mc_dropout_predict(
+            model, loaders["val"], device=device, mc_samples=mc_samples, temperature=learned_t
+        )
+        val_conf_cal = val_mc["confidence"]
     else:
+        mc_uncal = None
         mc_out = {
             "mean_probs": probs_cal,
             "preds": np.argmax(probs_cal, axis=-1),
@@ -94,13 +107,13 @@ def main() -> None:
             "variance": np.zeros(len(y_true), dtype=np.float64),
             "targets": y_true,
         }
+        val_probs_cal = scaler.predict_probs(val_logits)
+        val_conf_cal = np.max(val_probs_cal, axis=-1)
 
     n_bins = int(cfg["calibration"]["n_bins"])
     cls_metrics = compute_classification_metrics(y_true, mc_out["preds"], class_names=class_names)
 
-    # Select coverage thresholds strictly on Validation calibrated confidence
-    val_probs_cal = scaler.predict_probs(val_logits)
-    val_conf_cal = np.max(val_probs_cal, axis=-1)
+    # Select coverage thresholds strictly on Validation matched confidence scores
     coverage_table = []
     for cov in cfg["selective"]["target_coverages"]:
         th = select_threshold_for_coverage(val_conf_cal, cov, higher_is_more_confident=True)
@@ -113,6 +126,30 @@ def main() -> None:
         )
         row["target_coverage"] = cov
         coverage_table.append(row)
+
+    # Inference-stage ablation summary (I1 -> I4 on identical trained weights)
+    def _stage_summary(probs_arr: np.ndarray) -> dict[str, float]:
+        p = np.argmax(probs_arr, axis=-1)
+        c = np.max(probs_arr, axis=-1)
+        ent = predictive_entropy(probs_arr)
+        m = compute_classification_metrics(y_true, p)
+        return {
+            "accuracy": m["accuracy"],
+            "balanced_accuracy": m["balanced_accuracy"],
+            "macro_f1": m["macro_f1"],
+            "ece": compute_ece(probs_arr, y_true, n_bins=n_bins),
+            "brier": compute_brier_score(probs_arr, y_true),
+            "aurc_conf": compute_aurc(p, y_true, c, True),
+            "error_auroc_ent": compute_error_detection_auroc(p, y_true, ent),
+        }
+
+    inference_ablation = {
+        "I1_deterministic_uncalibrated": _stage_summary(probs_uncal),
+        "I2_deterministic_temp_scaled": _stage_summary(probs_cal),
+    }
+    if mc_uncal is not None:
+        inference_ablation["I3_mc_uncalibrated"] = _stage_summary(mc_uncal["mean_probs"])
+        inference_ablation["I4_mc_temp_scaled"] = _stage_summary(mc_out["mean_probs"])
 
     results = {
         "experiment": exp_name,
@@ -149,6 +186,7 @@ def main() -> None:
             "aurc_mc_entropy": compute_aurc(mc_out["preds"], y_true, mc_out["entropy"], False),
             "coverage_operating_points": coverage_table,
         },
+        "inference_ablation": inference_ablation,
     }
 
     tables_dir = outputs_dir / "tables"
@@ -215,6 +253,7 @@ def main() -> None:
 
     print(f"[{exp_name}] Calibration:", json.dumps(results["calibration"], indent=2))
     print(f"[{exp_name}] Error Detection AUROC:", json.dumps(results["uncertainty"], indent=2))
+    print(f"[{exp_name}] Matched Coverage Points:", [(round(r['target_coverage'], 2), round(r['coverage'], 3), round(r['selective_accuracy'], 3)) for r in coverage_table])
 
 
 if __name__ == "__main__":

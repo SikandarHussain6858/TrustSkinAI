@@ -1,0 +1,11 @@
+# Ablation R3s: R2 + square-root dampened inverse-frequency class weights (power = 0.5).
+# Tests whether softer weighting preserves rare-class recall while cutting NV -> MEL false alarms.
+
+_base_: "abl_r2_resnet_ce_aug.yaml"
+
+experiment:
+  name: "abl_r3s_resnet_sqrtw_aug"
+
+training:
+  loss: "weighted_ce"
+  class_weight_power: 0.5

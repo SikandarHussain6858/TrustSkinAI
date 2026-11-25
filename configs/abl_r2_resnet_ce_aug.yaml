@@ -1,0 +1,10 @@
+# Ablation R2: R1 + dermoscopy data augmentation (plain Cross-Entropy).
+# Isolates the effect of data augmentation on top of pretrained ResNet-18 features.
+
+_base_: "abl_r1_resnet_ce_noaug.yaml"
+
+experiment:
+  name: "abl_r2_resnet_ce_aug"
+
+dataset:
+  augment: true

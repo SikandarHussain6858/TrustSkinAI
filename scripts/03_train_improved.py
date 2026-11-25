@@ -18,10 +18,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Train improved MC Dropout model.")
     parser.add_argument("--config", type=str, default="configs/improved_mc_cnn.yaml")
     parser.add_argument("--epochs", type=int, default=None, help="Optional override for epochs.")
+    parser.add_argument("--seed", type=int, default=None, help="Optional override for random seed.")
+    parser.add_argument("--exp-name", type=str, default=None, help="Optional override for experiment name.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    set_seed(cfg["experiment"]["seed"])
+    seed = args.seed if args.seed is not None else int(cfg["experiment"]["seed"])
+    exp_name = args.exp_name or cfg["experiment"]["name"]
+    set_seed(seed)
     device = get_device(cfg["experiment"]["device"])
 
     loaders, _ = create_dataloaders(cfg)
@@ -36,7 +40,13 @@ def main() -> None:
             task_name=cfg["dataset"]["task_name"],
             split="train",
         )
-        class_weights = compute_class_weights(train_labels, cfg["dataset"]["num_classes"])
+        weight_power = float(train_cfg.get("class_weight_power", 1.0))
+        class_weights = compute_class_weights(
+            train_labels,
+            cfg["dataset"]["num_classes"],
+            power=weight_power,
+        )
+        print(f"[{exp_name}] Using class weights (power={weight_power}): {np.round(class_weights.numpy(), 3)}")
 
     criterion = build_criterion(train_cfg["loss"], class_weights=class_weights)
 
@@ -53,7 +63,6 @@ def main() -> None:
     if train_cfg.get("scheduler") == "cosine":
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-    exp_name = cfg["experiment"]["name"]
     ckpt_path = Path(cfg["paths"]["checkpoints_dir"]) / f"{exp_name}_best.pt"
     history_path = Path(cfg["paths"]["outputs_dir"]) / "logs" / f"{exp_name}_history.json"
 

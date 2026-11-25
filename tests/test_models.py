@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
 import torch
 
-from trustskin.models import BaselineCNN, UncertaintyCNN, build_model
+from trustskin.models import BaselineCNN, ResNet18MC, UncertaintyCNN, build_model
 from trustskin.models.uncertainty_cnn import enable_mc_dropout
 from trustskin.utils import load_config
 
@@ -41,3 +44,16 @@ def test_configs_load_and_build_models() -> None:
     m2 = build_model(imp_cfg["model"])
     assert isinstance(m1, BaselineCNN)
     assert isinstance(m2, UncertaintyCNN)
+
+
+def test_resnet18_mc_pure_pytorch_and_checkpoint() -> None:
+    model = ResNet18MC(num_classes=7, dropout_p=0.3, pretrained=False)
+    ckpt_path = Path("checkpoints/resnet18_mc_best.pt")
+    if ckpt_path.exists():
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        model.load_state_dict(ckpt["model_state_dict"])
+
+    enable_mc_dropout(model)
+    x = torch.randn(1, 3, 224, 224)
+    out = model(x)
+    assert out.shape == (1, 7)

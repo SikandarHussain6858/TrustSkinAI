@@ -85,7 +85,33 @@
 
 ---
 
+## Phase 4 — Interactive Demo UI, Week 15 Technical Report & Viva Prep (Completed: 2026-11-25)
+
+### Deliverables Built
+- **Pure-PyTorch ResNet-18 Inference Fallback (`src/trustskin/models/uncertainty_cnn.py`):** Added `_SimpleResNet18` matching `torchvision.models.resnet18` `state_dict` keys 1:1 so `checkpoints/resnet18_mc_best.pt` loads locally on CPU without requiring `torchvision`.
+- **Interactive 3-Tab Streamlit Demo (`app/demo_app.py`):**
+  - *Tab 1 (Live Lesion Triage):* Real held-out MedIMeta test presets (Clear Nevus, Melanoma, Rare Dermatofibroma, Ambiguous High-Uncertainty, Misclassified Melanoma) + custom upload, side-by-side **Baseline CNN vs. TrustSkin AI (ResNet18-MC)** comparison, live MC Dropout + Temperature Scaling ($T = 1.2060$), and interactive Selective Confidence Threshold slider showing Accept vs. Refer decisions.
+  - *Tab 2 (Controlled Experiments Dashboard):* Interactive `experiment_comparison.csv` + visual gallery of all key report figures.
+  - *Tab 3 (Methodology & Team):* Pipeline summary, team roles, and educational disclaimer.
+- **Week 15 Technical Report (`report/TrustSkinAI_Technical_Report.md`):** Complete 10-section report following the exact CS320 specification, including all verified tables, Contribution Statement, and AI Tools Usage Disclosure.
+- **Week 17 Viva Prep (`docs/VIVA_PREP.md`):** 10-slide presentation outline + technical Q&A guide.
+
+---
+
+## Phase 5A — Controlled Ablation Ladder, Selective-Threshold Bug Fix & Statistical Rigor (Completed: 2026-11-26)
+
+### Implemented Upgrades
+- **Selective-Threshold Score-Matching Fix (`scripts/04_calibrate_and_select.py`):** Fixed the methodology bug where validation thresholds were computed on deterministic confidences and applied to MC-averaged test confidences. Validation thresholds are now computed on matched MC-averaged validation confidences, and the script logs inference-stage ablations (`I1 → I4`) on identical weights.
+- **Single-Factor Ablation Ladder (`configs/abl_r1_*`, `abl_r2_*`, `abl_r3s_*`):** Added `power` dampening to `compute_class_weights()` (`1.0` = linear, `0.5` = square-root, normalized to mean `1.0`), added `--seed` / `--exp-name` overrides to `scripts/03_train_improved.py`, removed redundant `configs/ablation_weighted_aug.yaml`, and added ordered ablation-ladder output (`ablation_ladder.csv`) to `scripts/05_compare_experiments.py`.
+- **Formal Difficult-Case Criteria & Statistical Testing (`scripts/07_difficult_case_eval.py`):** Evaluates all models on `hard_6_non_nv` (`n=603`), `confusable_triad_mel_nv_bkl` (`n=1,297`), and `baseline_failures` (`n=513`) with 1,000-resample bootstrap 95% CIs and exact paired McNemar tests.
+  - *Verified on existing checkpoints:* `resnet18_mc` improves `hard_6_non_nv` accuracy from **23.88% → 71.31%** (AURC `0.7718 → 0.1307`, McNemar +286 net, $p = 6.95 \times 10^{-63}$) and fixes **64.5% (`331/513`)** of baseline errors.
+- **Second Uncertainty Method (`scripts/08_ensemble_eval.py`):** Evaluates a 3-seed **Deep Ensemble** against single-model **MC Dropout** and **Deterministic Softmax** on identical splits (`uncertainty_method_comparison.csv`).
+- **Phase 5 Colab Notebook (`notebooks/01_phase5_ablations_and_ensemble.ipynb`):** Dedicated 11-cell Colab GPU notebook for R1, R2, R3s, seeds 43 & 44, ensemble comparison, and statistical tables.
+- **Verification:** **17 / 17** unit tests passing (`tests/test_phase5_stats.py` added).
+
+---
+
 ## Upcoming Phases Checklist
-- [x] **Phase 3 (Google Colab GPU):** Run Exp 0–4 controlled experiments, calibration, selective classification, and difficult-case error analysis; sync `checkpoints/` and `outputs/` locally.
-- [ ] **Phase 4 (Demo UI & Optional Ablation):** Wire `resnet18_mc_best.pt` ($T = 1.2060$) into the Streamlit demo (`app/demo_app.py`), and optionally test square-root dampened class weights ($1/\sqrt{n_c}$) to reduce `NV → MEL` false positives.
-- [ ] **Phase 5 (Week 15 Submission):** Finalize Technical Report (10 sections + Contribution Statement + AI Tool Disclosure) and Week 17 Viva slides.
+- [x] **Phase 5A (Local Code & Statistical Rigor):** Fixed selective-threshold bug, added difficult-case McNemar + bootstrap evaluation, added R1/R2/R3s configs, ensemble script, and Phase 5 Colab notebook (17/17 tests passing).
+- [ ] **Phase 5B (Google Colab GPU):** Push Phase 5A updates to GitHub and run `notebooks/01_phase5_ablations_and_ensemble.ipynb` on Colab T4 (~1.5–2.5 hours) for R1, R2, R3s, seeds 43 & 44, and Deep Ensemble evaluation.
+- [ ] **Phase 5C (Final Polish & Submission):** Sync Phase 5B results locally, update `report/TrustSkinAI_Technical_Report.md` and `app/demo_app.py` with the final ablation ladder & ensemble results, and export final PDF report.

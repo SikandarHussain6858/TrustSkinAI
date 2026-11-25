@@ -253,12 +253,23 @@ def load_medimeta_splits(
     return {"train": local_train, "val": local_val, "test": local_test}, local_train.class_names
 
 
-def compute_class_weights(labels: np.ndarray | list[int], num_classes: int) -> torch.Tensor:
-    """Compute inverse-frequency balanced class weights from training labels only."""
+def compute_class_weights(
+    labels: np.ndarray | list[int],
+    num_classes: int,
+    power: float = 1.0,
+) -> torch.Tensor:
+    """Compute (optionally dampened) inverse-frequency class weights from training labels only.
+
+    Args:
+        labels: 1D array/list of integer class indices from the training split.
+        num_classes: Total number of classes.
+        power: Dampening exponent (1.0 = full linear inverse frequency; 0.5 = square-root).
+    """
     arr = np.asarray(labels, dtype=np.int64)
     counts = np.bincount(arr, minlength=num_classes).astype(np.float64)
     counts = np.maximum(counts, 1.0)
-    weights = len(arr) / (num_classes * counts)
+    weights = (len(arr) / (num_classes * counts)) ** float(power)
+    weights = weights / float(np.mean(weights))
     return torch.tensor(weights, dtype=torch.float32)
 
 

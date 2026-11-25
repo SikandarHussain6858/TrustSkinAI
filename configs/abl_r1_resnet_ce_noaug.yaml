@@ -1,0 +1,31 @@
+# Ablation R1: Pretrained ResNet-18 + Dropout(0.3) head, plain Cross-Entropy, NO augmentation.
+# Isolates the effect of transfer learning alone relative to CS320 BaselineCNN (B0).
+
+_base_: "base.yaml"
+
+experiment:
+  name: "abl_r1_resnet_ce_noaug"
+
+dataset:
+  augment: false
+  batch_size: 64
+
+model:
+  type: "resnet18_mc"
+  in_channels: 3
+  num_classes: 7
+  dropout_p: 0.3
+  pretrained: true
+
+training:
+  epochs: 20
+  optimizer: "adamw"
+  lr: 0.0003
+  weight_decay: 0.0001
+  loss: "cross_entropy"
+  scheduler: "cosine"
+  early_stopping_patience: 6
+  selection_metric: "val_loss"
+
+uncertainty:
+  mc_samples: 25

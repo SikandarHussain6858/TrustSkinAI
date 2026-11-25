@@ -105,6 +105,31 @@ def main() -> None:
         df.to_csv(out_csv, index=False)
         print(f"Saved comparison table to {out_csv}:")
         print(df.to_string(index=False))
+
+        # Ordered ablation ladder table (B0 -> R1 -> R2 -> R3 -> R3s) with step-to-step deltas
+        ladder_order = [
+            "baseline_cnn",
+            "abl_r1_resnet_ce_noaug",
+            "abl_r2_resnet_ce_aug",
+            "resnet18_mc",
+            "abl_r3s_resnet_sqrtw_aug",
+        ]
+        ladder_rows = []
+        prev = None
+        for exp_id in ladder_order:
+            match = df[df["experiment"] == exp_id]
+            if len(match) == 0:
+                continue
+            r = match.iloc[0].to_dict()
+            r["delta_bal_acc"] = round(r["balanced_accuracy"] - prev["balanced_accuracy"], 4) if prev else 0.0
+            r["delta_macro_f1"] = round(r["macro_f1"] - prev["macro_f1"], 4) if prev else 0.0
+            r["delta_aurc"] = round(r["aurc"] - prev["aurc"], 4) if prev else 0.0
+            ladder_rows.append(r)
+            prev = r
+        if ladder_rows:
+            ladder_df = pd.DataFrame(ladder_rows)
+            ladder_df.to_csv(tables_dir / "ablation_ladder.csv", index=False)
+            print("\nSaved ordered ablation ladder to outputs/tables/ablation_ladder.csv")
     else:
         print(f"No experiment result JSON files found in {tables_dir}.")
 
