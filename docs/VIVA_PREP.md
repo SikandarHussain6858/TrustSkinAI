@@ -39,3 +39,15 @@
 
 ### Q6: Why do you freeze BatchNorm during MC Dropout inference?
 - **Answer:** Calling `model.train()` globally would make BatchNorm layers use noisy mini-batch statistics instead of learned running mean/variance (and fail for batch size 1!). Our `enable_mc_dropout()` sets the model to `eval()` first, then selectively enables `train()` **only** on `Dropout` / `Dropout2d` layers.
+
+### Q7: How did you isolate the contribution of each component instead of changing 5 things at once?
+- **Answer:** We ran a strict single-factor ablation ladder on identical MedIMeta splits: `B0` (scratch baseline, 30.9% Bal Acc) → `R1` (+ pretrained ResNet-18, 53.8%) → `R2` (+ augmentation, 67.3%, AURC 0.0578) → `R3s` (+ sqrt class weights, 70.4% Bal Acc, MEL recall jumps 40.4% → 70.8%, ECE 0.0486) → `Deep Ensemble` (3 seeds of R3s: **75.7% Bal Acc, 74.6% Macro F1, ECE 0.0204**).
+
+### Q8: How did MC Dropout compare against a Deep Ensemble for uncertainty estimation?
+- **Answer:** On identical R3s models with Temperature Scaling, MC Dropout ($T=25$) improved ECE slightly over deterministic softmax (`0.0505 → 0.0450`) and gave strong epistemic MI (`0.8043` AUROC). However, a **3-seed Deep Ensemble** outperformed both across every single metric: ECE dropped by more than half to **`0.0204`**, Brier dropped `0.2970 → 0.2815`, AURC dropped `0.0620 → 0.0573`, and Macro F1 jumped `71.04% → 74.58%`.
+
+### Q9: How do you prove statistically that TrustSkin AI genuinely improves difficult cases?
+- **Answer:** We defined three difficult subsets up front (`hard_6_non_nv` $n=603$, `confusable_triad_mel_nv_bkl` $n=1{,}297$, and `baseline_failures` $n=513$) and ran 1,000-resample bootstrap 95% CIs plus exact paired **McNemar tests** against the baseline. On `hard_6_non_nv`, our Deep Ensemble lifted accuracy from **23.88% → 73.30%** (+298 net fixes, $p = 7.44 \times 10^{-71}$) and fixed **66.5% (`341/513`)** of baseline errors.
+
+### Q10: Why did you fix the selective-threshold code in Phase 5?
+- **Answer:** We discovered a subtle methodological bug in our first run: picking thresholds on *deterministic* validation confidences and applying them to *MC-averaged* test confidences caused a coverage shift (70% target → 56.7% actual) because MC averaging lowers max probabilities. Matching validation and test score types in `04_calibrate_and_select.py` eliminated that mismatch.

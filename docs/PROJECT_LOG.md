@@ -111,7 +111,22 @@
 
 ---
 
+## Phase 5B & 5C — Colab GPU Ablation Ladder, 3-Seed Deep Ensemble & Final Polish (Completed: 2026-11-26)
+
+### Execution & Results Summary
+- Executed `notebooks/01_phase5_ablations_and_ensemble.ipynb` on a Google Colab Tesla T4 GPU: trained `abl_r1_resnet_ce_noaug`, `abl_r2_resnet_ce_aug`, `abl_r3s_resnet_sqrtw_aug`, `r3s_seed43`, and `r3s_seed44` (with fixed matched-score selective calibration), plus `scripts/08_ensemble_eval.py`.
+- Synced all 8 `.pt` checkpoints, 8 training logs, 59 figures, and prediction CSVs locally, then regenerated unified `experiment_comparison.csv`, `ablation_ladder.csv`, `uncertainty_method_comparison.csv`, `difficult_case_metrics.csv`, `bootstrap_ci.csv`, and `mcnemar_tests.csv`.
+- **Headline Improvement (`Deep Ensemble` of 3 R3s seeds, TS):**
+  - Accuracy: **79.70%** [77.8, 81.8] · Balanced Accuracy: **75.70%** [71.7, 79.6] (+44.9 pts vs baseline) · Macro F1: **74.58%** [71.0, 77.6] (+40.0 pts)
+  - Calibration **ECE = 0.0204** (cut >50% vs single-model MC Dropout `0.0450` and Deterministic `0.0505`) · Brier = **0.2815** · AURC = **0.0573** (-57% vs baseline) · Err-AUROC = **0.8450**
+  - Formal `hard_6_non_nv` accuracy: **73.30%** (vs `23.88%` baseline, McNemar +298 net, $p = 7.44 \times 10^{-71}$); fixes **66.5% (`341/513`)** of baseline errors; **93.6%** malignant safety at 70% coverage (only `17/264` malignant errors unreferred).
+- Upgraded `app/demo_app.py` to default to the **3-Seed Deep Ensemble** and display the Phase 5 ablation ladder, uncertainty method comparison, paired McNemar table, and difficult-case comparison plots.
+- Updated `report/TrustSkinAI_Technical_Report.md`, `docs/EXPERIMENT_RESULTS.md`, and `docs/VIVA_PREP.md` with all final verified Phase 5 numbers.
+
+---
+
 ## Upcoming Phases Checklist
 - [x] **Phase 5A (Local Code & Statistical Rigor):** Fixed selective-threshold bug, added difficult-case McNemar + bootstrap evaluation, added R1/R2/R3s configs, ensemble script, and Phase 5 Colab notebook (17/17 tests passing).
-- [ ] **Phase 5B (Google Colab GPU):** Push Phase 5A updates to GitHub and run `notebooks/01_phase5_ablations_and_ensemble.ipynb` on Colab T4 (~1.5–2.5 hours) for R1, R2, R3s, seeds 43 & 44, and Deep Ensemble evaluation.
-- [ ] **Phase 5C (Final Polish & Submission):** Sync Phase 5B results locally, update `report/TrustSkinAI_Technical_Report.md` and `app/demo_app.py` with the final ablation ladder & ensemble results, and export final PDF report.
+- [x] **Phase 5B (Google Colab GPU):** Ran R1, R2, R3s, seeds 43 & 44, and Deep Ensemble evaluation on Colab T4 and synced all 8 checkpoints + 59 figures locally.
+- [x] **Phase 5C (Final Polish & Submission Prep):** Updated `app/demo_app.py` (with 3-Seed Deep Ensemble), `report/TrustSkinAI_Technical_Report.md`, `docs/EXPERIMENT_RESULTS.md`, and `docs/VIVA_PREP.md`, and pushed final code to GitHub.
+- [ ] **Final Export:** Convert `report/TrustSkinAI_Technical_Report.md` to PDF/Word with embedded PNG figures from `outputs/figures/` for Week 15 submission & prepare Week 17 Viva slides from `docs/VIVA_PREP.md`.
